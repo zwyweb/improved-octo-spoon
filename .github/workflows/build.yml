@@ -1,4 +1,4 @@
-name: bsx-build
+name: bsx-stable-build
 
 on:
   push:
@@ -6,8 +6,6 @@ on:
 
 env:
   ZSTD_SYS_USE_PKG_CONFIG: 0
-  LIBZSTD_NO_PKG_CONFIG: 1
-  OPUS_NO_PKG_CONFIG: 1
   CMAKE_ARGS: -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   CARGO_TERM_COLOR: always
 
@@ -37,7 +35,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config libzstd-dev libopus-dev
 
       - name: Install Windows deps
         if: matrix.os == 'windows-latest'
@@ -45,7 +43,7 @@ jobs:
           choco install -y cmake ninja
 
       - name: Build
-        run: cargo build -p bsx --release --target ${{ matrix.target }}
+        run: cargo build -p bsx --release --features native --target ${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -80,7 +78,7 @@ jobs:
           export CXX_aarch64_linux_android=aarch64-linux-android21-clang++
           export AR_aarch64_linux_android=llvm-ar
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android21-clang
-          cargo build -p bsx --release --target aarch64-linux-android
+          cargo build -p bsx --release --no-default-features --features android --target aarch64-linux-android
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
