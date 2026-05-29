@@ -1,14 +1,10 @@
-name: stable-build
+name: qopack-stable-ci
 
 on:
   push:
   workflow_dispatch:
 
 jobs:
-
-# =========================
-# NATIVE DESKTOP
-# =========================
   desktop:
     strategy:
       fail-fast: false
@@ -24,50 +20,40 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      # force system libs instead of bundled C builds when possible
-      ZSTD_SYS_USE_PKG_CONFIG: 1
-      OPUS_NO_PKG_CONFIG: 0
+      ZSTD_SYS_USE_PKG_CONFIG: 0
+      LIBZSTD_NO_PKG_CONFIG: 1
+      PKG_CONFIG_ALLOW_CROSS: 1
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install deps (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libopus-dev libzstd-dev cmake build-essential
-
-      - name: Install deps (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install opus zstd cmake pkg-config || true
-
-      - name: Install deps (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install -y cmake ninja
 
       - name: Add target
         run: rustup target add ${{ matrix.target }}
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Install deps (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libopus-dev libzstd-dev cmake build-essential
 
-      - name: Upload
+      - name: Install deps (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install opus zstd cmake pkg-config || true
+
+      - name: Install deps (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install -y cmake ninja
+
+      - name: Build
+        run: cargo build -p bsx --release --target ${{ matrix.target }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/
 
-
-# =========================
-# WASM (SAFE MODE)
-# =========================
   wasm:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -75,29 +61,24 @@ jobs:
       - name: Add wasm target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Build wasm (NO C-DEPS)
-        run: |
-          RUSTFLAGS="--cfg getrandom_backend=\"wasm_js\"" \
-          cargo build --release --target wasm32-unknown-unknown --no-default-features --features wasm
+      - name: Build WASM
+        env:
+          RUSTFLAGS: --cfg getrandom_backend="wasm_js"
+        run: cargo build -p bsx --release --target wasm32-unknown-unknown --no-default-features --features wasm
 
-      - name: Upload wasm
+      - name: Upload WASM
         uses: actions/upload-artifact@v4
         with:
           name: wasm
           path: target/wasm32-unknown-unknown/release/
 
-
-# =========================
-# ANDROID (SAFE BUILD)
-# =========================
   android:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install NDK
+      - name: Install Android NDK
         run: |
           sudo apt-get update
           sudo apt-get install -y wget unzip
@@ -108,16 +89,17 @@ jobs:
       - name: Add target
         run: rustup target add aarch64-linux-android
 
-      - name: Build Android (disable C heavy deps)
+      - name: Build Android
         run: |
           export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
           export CC_aarch64_linux_android=aarch64-linux-android21-clang
           export AR_aarch64_linux_android=llvm-ar
+          export ZSTD_SYS_USE_PKG_CONFIG=0
+          export LIBZSTD_NO_PKG_CONFIG=1
+          export PKG_CONFIG_ALLOW_CROSS=1
+          cargo build -p bsx --release --target aarch64-linux-android --no-default-features --features android
 
-          # IMPORTANT: feature-based safe build
-          cargo build --release --target aarch64-linux-android --no-default-features --features android
-
-      - name: Upload android
+      - name: Upload Android
         uses: actions/upload-artifact@v4
         with:
           name: android-arm64
