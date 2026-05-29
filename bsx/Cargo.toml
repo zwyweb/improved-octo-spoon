@@ -9,12 +9,12 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["native"]
 
-full = ["native"]
+# keep old name working
+full = ["native", "audio-opus"]
 
 native = [
     "dep:zstd",
     "dep:rayon",
-    "dep:opus",
     "dep:symphonia",
     "dep:walkdir",
     "dep:clap",
@@ -27,6 +27,11 @@ native = [
     "image/tiff",
     "image/bmp",
     "image/gif",
+]
+
+# only enable this when you really want Opus / audiopus_sys
+audio-opus = [
+    "dep:opus",
 ]
 
 android = [
