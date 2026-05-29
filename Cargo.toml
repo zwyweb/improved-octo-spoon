@@ -28,8 +28,3 @@ codegen-units = 1
 
 [profile.release.package.crc32fast]
 opt-level     = 3
-
-[features]
-android = []
-wasm = []
-native = []
