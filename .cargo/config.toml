@@ -1,0 +1,21 @@
+# ── WASM32 target-specific rustflags ─────────────────────────────────────────
+# These are merged with (and take precedence over) env RUSTFLAGS for wasm32.
+# Critical: +simd128 enables WASM SIMD for ruzstd, lz4_flex, image decoders.
+[target.wasm32-unknown-unknown]
+rustflags = [
+    # Codegen
+    "-C", "opt-level=3",
+    "-C", "codegen-units=1",
+    "-C", "debuginfo=0",
+    "-C", "panic=abort",
+    "-C", "lto=fat",
+
+    # WASM feature set — this is the critical missing piece.
+    # Without +simd128, LLVM cannot emit WASM SIMD instructions even if
+    # it would otherwise auto-vectorise (u64 XOR loops, zstd, lz4 paths).
+    "-C", "target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext,+mutable-globals,+reference-types,+multivalue",
+
+    # Reduce stack to 32 KB (default 1 MB) → more linear memory for heap.
+    # Safe for our call depth; lz4/zstd decoders are not deeply recursive.
+    "-C", "link-arg=-zstack-size=32768",
+]

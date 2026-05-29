@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members  = ["bsx"]
+
+# ── Release profile ───────────────────────────────────────────────────────────
+[profile.release]
+opt-level     = 3
+lto           = "fat"
+codegen-units = 1
+panic         = "abort"
+strip = true 
+
+# ── Size profile (если нужен) ─────────────────────────────────────────────────
+[profile.release-size]
+inherits      = "release"
+opt-level     = "z"
+lto           = "fat"
+
+# ── Зависимости всего workspace — скоростные патчи ───────────────────────────
+[profile.release.package."*"]
+opt-level     = 3
+
+# lz4_flex: codegen-units=1 forces LTO inlining of hot decompress paths.
+# Combined with unsafe_stable feature → LLVM vectorises with SIMD128.
+[profile.release.package.lz4_flex]
+opt-level     = 3
+codegen-units = 1
+
+[profile.release.package.crc32fast]
+opt-level     = 3

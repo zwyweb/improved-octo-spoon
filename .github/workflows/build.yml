@@ -1,0 +1,127 @@
+name: MLEKU Studio Bundle Format (MSxBSX)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+
+# =========================
+# DESKTOP (Linux/Windows/macOS)
+# =========================
+  desktop:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: so
+
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+            ext: dll
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            ext: dylib
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/
+
+# =========================
+# WASM
+# =========================
+  wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build WASM
+        run: cargo build --release --target wasm32-unknown-unknown
+
+      - name: Upload WASM
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: target/wasm32-unknown-unknown/release/
+
+# =========================
+# ANDROID (arm64)
+# =========================
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Android target
+        run: rustup target add aarch64-linux-android
+
+      - name: Install Android NDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip wget
+          wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+          unzip android-ndk-r25c-linux.zip
+
+      - name: Build Android
+        run: |
+          export ANDROID_NDK_HOME=$PWD/android-ndk-r25c
+          cargo build --release --target aarch64-linux-android
+
+      - name: Upload Android
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: target/aarch64-linux-android/release/
+
+# =========================
+# iOS
+# =========================
+  ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add iOS target
+        run: rustup target add aarch64-apple-ios
+
+      - name: Build iOS
+        run: cargo build --release --target aarch64-apple-ios
+
+      - name: Upload iOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: target/aarch64-apple-ios/release/
