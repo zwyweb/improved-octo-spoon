@@ -1,8 +1,15 @@
-name: qopack-stable-ci
+name: bsx-build
 
 on:
   push:
   workflow_dispatch:
+
+env:
+  ZSTD_SYS_USE_PKG_CONFIG: 0
+  LIBZSTD_NO_PKG_CONFIG: 1
+  OPUS_NO_PKG_CONFIG: 1
+  CMAKE_ARGS: -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  CARGO_TERM_COLOR: always
 
 jobs:
   desktop:
@@ -14,34 +21,28 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-          - os: macos-latest
-            target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.os }}
 
-    env:
-      ZSTD_SYS_USE_PKG_CONFIG: 0
-      LIBZSTD_NO_PKG_CONFIG: 1
-      PKG_CONFIG_ALLOW_CROSS: 1
-
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Add target
         run: rustup target add ${{ matrix.target }}
 
-      - name: Install deps (Linux)
+      - name: Install Linux deps
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libopus-dev libzstd-dev cmake build-essential
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config
 
-      - name: Install deps (macOS)
-        if: matrix.os == 'macos-latest'
-        run: brew install opus zstd cmake pkg-config || true
-
-      - name: Install deps (Windows)
+      - name: Install Windows deps
         if: matrix.os == 'windows-latest'
-        run: choco install -y cmake ninja
+        run: |
+          choco install -y cmake ninja
 
       - name: Build
         run: cargo build -p bsx --release --target ${{ matrix.target }}
@@ -52,54 +53,36 @@ jobs:
           name: desktop-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/
 
-  wasm:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Add wasm target
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: Build WASM
-        env:
-          RUSTFLAGS: --cfg getrandom_backend="wasm_js"
-        run: cargo build -p bsx --release --target wasm32-unknown-unknown --no-default-features --features wasm
-
-      - name: Upload WASM
-        uses: actions/upload-artifact@v4
-        with:
-          name: wasm
-          path: target/wasm32-unknown-unknown/release/
-
   android:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install Android NDK
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget unzip
-          wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
-          unzip android-ndk-r25c-linux.zip
+          sudo apt-get install -y wget unzip cmake ninja-build
+          wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+          unzip -q android-ndk-r25c-linux.zip
           echo "ANDROID_NDK_HOME=$PWD/android-ndk-r25c" >> $GITHUB_ENV
+          echo "$PWD/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
-      - name: Add target
+      - name: Add Android target
         run: rustup target add aarch64-linux-android
 
       - name: Build Android
         run: |
-          export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
           export CC_aarch64_linux_android=aarch64-linux-android21-clang
+          export CXX_aarch64_linux_android=aarch64-linux-android21-clang++
           export AR_aarch64_linux_android=llvm-ar
-          export ZSTD_SYS_USE_PKG_CONFIG=0
-          export LIBZSTD_NO_PKG_CONFIG=1
-          export PKG_CONFIG_ALLOW_CROSS=1
-          cargo build -p bsx --release --target aarch64-linux-android --no-default-features --features android
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android21-clang
+          cargo build -p bsx --release --target aarch64-linux-android
 
-      - name: Upload Android
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-arm64
