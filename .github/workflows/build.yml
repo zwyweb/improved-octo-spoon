@@ -1,4 +1,4 @@
-name: bsx-windows-only
+name: bsx-windows-only-stable
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CMAKE_ARGS: -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  CMAKE_POLICY_VERSION_MINIMUM: 3.5
 
 jobs:
   windows:
@@ -18,10 +18,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install CMake/Ninja
+      - name: Install CMake and Ninja
         run: choco install -y cmake ninja
 
-      - name: Build release lib
+      - name: Build
         run: cargo build -p bsx --release --lib --features native --target x86_64-pc-windows-msvc
 
       - name: Upload artifact
