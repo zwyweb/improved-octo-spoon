@@ -6,95 +6,82 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# ─── Features ────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# FEATURES (простая и стабильная модель)
+# ─────────────────────────────────────────────────────────────
 [features]
-default = ["full"]
+default = ["native"]
 
-full = [
-    "dep:zstd", "dep:rayon", "dep:opus",
-    "dep:symphonia", "dep:walkdir",
-    "dep:clap", "dep:colored", "dep:indicatif",
+# desktop / full runtime
+native = [
+    "dep:zstd",
+    "dep:rayon",
+    "dep:opus",
+    "dep:symphonia",
+    "dep:walkdir",
+    "dep:clap",
+    "dep:colored",
+    "dep:indicatif",
     "dep:rand",
-    "dep:memmap2", "dep:dashmap",
-    "image/jpeg", "image/tiff", "image/bmp", "image/gif",
+    "dep:memmap2",
+    "dep:dashmap",
 ]
 
-wasm = [
-    "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
-    "dep:js-sys",
-    "dep:web-sys",
-    "dep:serde-wasm-bindgen",
+# android = урезанный, без system C-deps сюрпризов
+android = [
+    "dep:zstd",
+    "dep:rayon",
+    "dep:rand",
 ]
-android = []
-native = []
 
-# ─── Always-on ───────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# CORE DEPENDENCIES (always-on, pure Rust preferred)
+# ─────────────────────────────────────────────────────────────
 [dependencies]
 anyhow    = { version = "1", features = ["std"] }
-postcard  = { version = "1", features = ["alloc"] }
-crc32fast    = "1"
-xxhash-rust  = { version = "0.8", features = ["xxh3"], optional = true }
-
-# +simd128); frame = frame format support; checked-decode removed for speed
-# (our stripped_lz4 validates sizes itself before calling decompress).
-# checked-decode убран — bounds-check overhead на каждый шаг декодирования.
-# SIMD даёт target-feature=+simd128 в .cargo/config.toml (LLVM auto-vec).
-# На nightly можно добавить feature "nightly" для explicit portable_simd.
-lz4_flex  = { version = "0.11", default-features = false, features = ["frame"] }
-
-ogg  = "0.9"
-qoi  = "0.4"
-
-serde      = { version = "1", features = ["derive"] }
+serde     = { version = "1", features = ["derive"] }
 serde_json = "1"
+postcard  = { version = "1", features = ["alloc"] }
+crc32fast = "1"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+meshopt   = "0.3"
 
-png   = "0.17"  # direct dep to control compression level in encode_rgba_to_png
+lz4_flex  = { version = "0.11", default-features = false, features = ["frame"] }
+ogg       = "0.9"
+qoi       = "0.4"
+png       = "0.17"
+
 image = { version = "0.25", default-features = false, features = [
     "webp",
     "png",
 ] }
 
-# ─── Native / full ───────────────────────────────────────────────────────────
-zstd       = { version = "0.13", optional = true, features = ["zstdmt"] }
-rayon      = { version = "1",    optional = true }
-dashmap    = { version = "6",    optional = true }
-opus       = { version = "0.3",  optional = true }
-symphonia  = { version = "0.5",  features = ["all"], optional = true }
-walkdir    = { version = "2",    optional = true }
-clap       = { version = "4",    features = ["derive"], optional = true }
-colored    = { version = "2",    optional = true }
-indicatif  = { version = "0.17", optional = true }
-rand       = { version = "0.9",  optional = true }
-memmap2    = { version = "0.9",  optional = true }
-meshopt    = "0.3"
+# ─────────────────────────────────────────────────────────────
+# HEAVY / OPTIONAL (ONLY FOR native + android feature gates)
+# ─────────────────────────────────────────────────────────────
+zstd = { version = "0.13", optional = true, default-features = false, features = ["zstdmt"] }
+rayon = { version = "1", optional = true }
+dashmap = { version = "6", optional = true }
+opus = { version = "0.3", optional = true }
+symphonia = { version = "0.5", optional = true, features = ["all"] }
+walkdir = { version = "2", optional = true }
+clap = { version = "4", optional = true, features = ["derive"] }
+colored = { version = "2", optional = true }
+indicatif = { version = "0.17", optional = true }
+rand = { version = "0.9", optional = true }
+memmap2 = { version = "0.9", optional = true }
 
-# ─── WASM JS bindings ────────────────────────────────────────────────────────
-wasm-bindgen         = { version = "0.2", optional = true }
+# ─────────────────────────────────────────────────────────────
+# WASM / BINDINGS (NOT USED IN YOUR CI RIGHT NOW)
+# ─────────────────────────────────────────────────────────────
+wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys               = { version = "0.3", optional = true }
-web-sys              = { version = "0.3", optional = true, features = [
-    "Blob", "BlobPropertyBag", "ImageData", "Url",
-] }
-serde-wasm-bindgen   = { version = "0.6", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true }
 
-# ─── WASM-only deps ──────────────────────────────────────────────────────────
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-# std feature = использует стандартный IO,
-# что даёт ruzstd доступ к лучшим путям оптимизации
-zstd = { version = "0.13", default-features = false, features = ["wasm", "zdict_builder"] }
+serde-wasm-bindgen = { version = "0.6", optional = true }
 
-# ─── wasm-pack metadata ──────────────────────────────────────────────────────
-# ВАЖНО: false = не запускать встроенный wasm-opt wasm-pack'а
-# Мы запускаем его сами с правильными флагами в build.sh
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
-
-# ─── Release profile ─────────────────────────────────────────────────────────
-[profile.release]
-opt-level     = 3
-lto           = "fat"
-codegen-units = 1
-strip         = true
-panic         = "abort"
-debug = 0
+# ─────────────────────────────────────────────────────────────
+# IMPORTANT: NO zstd-sys DIRECT CONTROL HERE
+# (let zstd crate manage backend safely)
+# ─────────────────────────────────────────────────────────────
