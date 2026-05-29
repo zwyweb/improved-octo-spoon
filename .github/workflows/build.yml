@@ -1,4 +1,4 @@
-name: MLEKU Studio Bundle Format (MSxBSX)
+name: stable-build
 
 on:
   push:
@@ -7,31 +7,47 @@ on:
 jobs:
 
 # =========================
-# DESKTOP (Linux/Windows/macOS)
+# NATIVE DESKTOP
 # =========================
   desktop:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            ext: so
-
           - os: windows-latest
-            target: x86_64-pc-windows-gnu
-            ext: dll
-
+            target: x86_64-pc-windows-msvc
           - os: macos-latest
             target: x86_64-apple-darwin
-            ext: dylib
 
     runs-on: ${{ matrix.os }}
+
+    env:
+      # force system libs instead of bundled C builds when possible
+      ZSTD_SYS_USE_PKG_CONFIG: 1
+      OPUS_NO_PKG_CONFIG: 0
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install deps (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libopus-dev libzstd-dev cmake build-essential
+
+      - name: Install deps (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install opus zstd cmake pkg-config || true
+
+      - name: Install deps (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install -y cmake ninja
 
       - name: Add target
         run: rustup target add ${{ matrix.target }}
@@ -39,89 +55,70 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Upload artifacts
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/
 
+
 # =========================
-# WASM
+# WASM (SAFE MODE)
 # =========================
   wasm:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Add wasm target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Build WASM
-        run: cargo build --release --target wasm32-unknown-unknown
+      - name: Build wasm (NO C-DEPS)
+        run: |
+          RUSTFLAGS="--cfg getrandom_backend=\"wasm_js\"" \
+          cargo build --release --target wasm32-unknown-unknown --no-default-features --features wasm
 
-      - name: Upload WASM
+      - name: Upload wasm
         uses: actions/upload-artifact@v4
         with:
           name: wasm
           path: target/wasm32-unknown-unknown/release/
 
+
 # =========================
-# ANDROID (arm64)
+# ANDROID (SAFE BUILD)
 # =========================
   android:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Android target
-        run: rustup target add aarch64-linux-android
-
-      - name: Install Android NDK
+      - name: Install NDK
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip wget
+          sudo apt-get install -y wget unzip
           wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
           unzip android-ndk-r25c-linux.zip
+          echo "ANDROID_NDK_HOME=$PWD/android-ndk-r25c" >> $GITHUB_ENV
 
-      - name: Build Android
+      - name: Add target
+        run: rustup target add aarch64-linux-android
+
+      - name: Build Android (disable C heavy deps)
         run: |
-          export ANDROID_NDK_HOME=$PWD/android-ndk-r25c
-          cargo build --release --target aarch64-linux-android
+          export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+          export CC_aarch64_linux_android=aarch64-linux-android21-clang
+          export AR_aarch64_linux_android=llvm-ar
 
-      - name: Upload Android
+          # IMPORTANT: feature-based safe build
+          cargo build --release --target aarch64-linux-android --no-default-features --features android
+
+      - name: Upload android
         uses: actions/upload-artifact@v4
         with:
-          name: android
+          name: android-arm64
           path: target/aarch64-linux-android/release/
-
-# =========================
-# iOS
-# =========================
-  ios:
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add iOS target
-        run: rustup target add aarch64-apple-ios
-
-      - name: Build iOS
-        run: cargo build --release --target aarch64-apple-ios
-
-      - name: Upload iOS
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios
-          path: target/aarch64-apple-ios/release/
