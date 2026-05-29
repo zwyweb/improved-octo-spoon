@@ -26,6 +26,8 @@ wasm = [
     "dep:web-sys",
     "dep:serde-wasm-bindgen",
 ]
+android = []
+native = []
 
 # ─── Always-on ───────────────────────────────────────────────────────────────
 [dependencies]
