@@ -1,0 +1,102 @@
+[package]
+name = "bsx"
+version = "2.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["native"]
+
+# Legacy alias — keep old invocations working
+full = ["native", "audio-opus"]
+
+# ── Desktop CLI packer (Windows / Linux only) ─────────────────────────────────
+native = [
+    "dep:zstd",
+    "dep:rayon",
+    "dep:symphonia",
+    "dep:walkdir",
+    "dep:clap",
+    "dep:colored",
+    "dep:indicatif",
+    "dep:rand",
+    "dep:memmap2",
+    "dep:dashmap",
+    "image/jpeg",
+    "image/tiff",
+    "image/bmp",
+    "image/gif",
+]
+
+# ── C FFI cdylib — Windows / Linux / Android ──────────────────────────────────
+# Enables only the decode-side API (bsx_load / bsx_get / bsx_list / …).
+# No CLI, no packer, no Symphonia, no wasm-bindgen.
+# Build: cargo build --lib --features ffi --no-default-features
+ffi = [
+    "dep:zstd",
+]
+
+# Legacy alias for Android — same as ffi
+android = ["ffi"]
+
+# ── WASM ──────────────────────────────────────────────────────────────────────
+wasm = [
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:js-sys",
+    "dep:web-sys",
+    "dep:serde-wasm-bindgen",
+]
+
+# ── Optional Opus encoder (heavy C dep, off by default) ───────────────────────
+audio-opus = ["dep:opus"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+[dependencies]
+anyhow     = { version = "1",    features = ["std"] }
+postcard   = { version = "1",    features = ["alloc"] }
+crc32fast  = "1"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+meshopt    = "0.3"
+
+lz4_flex   = { version = "0.11", default-features = false, features = ["frame"] }
+ogg        = "0.9"
+qoi        = "0.4"
+png        = "0.17"
+
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+image = { version = "0.25", default-features = false, features = ["webp", "png"] }
+
+# ── optional ──────────────────────────────────────────────────────────────────
+# zstd: required for both native and ffi; on wasm32 the target-dep below
+# overrides this entry with the correct wasm feature set.
+zstd       = { version = "0.13", optional = true }
+rayon      = { version = "1",    optional = true }
+dashmap    = { version = "6",    optional = true }
+opus       = { version = "0.3",  optional = true }
+symphonia  = { version = "0.5",  features = ["all"], optional = true }
+walkdir    = { version = "2",    optional = true }
+clap       = { version = "4",    features = ["derive"], optional = true }
+colored    = { version = "2",    optional = true }
+indicatif  = { version = "0.17", optional = true }
+rand       = { version = "0.9",  optional = true }
+memmap2    = { version = "0.9",  optional = true }
+
+wasm-bindgen         = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys               = { version = "0.3", optional = true }
+web-sys              = { version = "0.3", optional = true,
+    features = ["Blob", "BlobPropertyBag", "ImageData", "Url"] }
+serde-wasm-bindgen   = { version = "0.6", optional = true }
+
+# ── wasm32: force-enable zstd with the correct feature flags ──────────────────
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+zstd = { version = "0.13", default-features = false, features = ["wasm", "zdict_builder"] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

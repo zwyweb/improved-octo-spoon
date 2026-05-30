@@ -1,0 +1,101 @@
+name: bsx-build-all
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CMAKE_POLICY_VERSION_MINIMUM: 3.5
+  # Suppress zstd/meshopt CMake deprecation noise
+  CMAKE_WARN_DEPRECATED: "OFF"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Windows x86_64 ─────────────────────────────────────────────────
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: bsx.dll
+            artifact_glob: target/x86_64-pc-windows-msvc/release/bsx.dll
+            needs_cmake: true
+
+          # ── Linux x86_64 ───────────────────────────────────────────────────
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: libbsx.so
+            artifact_glob: target/x86_64-unknown-linux-gnu/release/libbsx.so
+            needs_cmake: false
+
+          # ── Android ARM64 ──────────────────────────────────────────────────
+          - name: android-arm64
+            os: ubuntu-latest
+            target: aarch64-linux-android
+            artifact_name: libbsx.so
+            artifact_glob: target/aarch64-linux-android/release/libbsx.so
+            needs_cmake: false
+            use_ndk: true
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ───────────────────────────────────────────────────────
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # ── Windows: CMake + Ninja (needed by zstd / meshopt build scripts) ─────
+      - name: Install CMake and Ninja (Windows)
+        if: matrix.needs_cmake
+        run: choco install -y cmake ninja
+
+      # ── Android: NDK + cargo-ndk ─────────────────────────────────────────────
+      - name: Set up Android NDK
+        if: matrix.use_ndk
+        uses: android-actions/setup-android@v3
+
+      - name: Install cargo-ndk
+        if: matrix.use_ndk
+        run: cargo install cargo-ndk --locked
+
+      # ── Build ─────────────────────────────────────────────────────────────────
+      - name: Build (Windows / Linux)
+        if: ${{ !matrix.use_ndk }}
+        run: >
+          cargo build
+          -p bsx
+          --release
+          --lib
+          --no-default-features
+          --features ffi
+          --target ${{ matrix.target }}
+
+      - name: Build (Android via cargo-ndk)
+        if: matrix.use_ndk
+        run: >
+          cargo ndk
+          -t arm64-v8a
+          --platform 21
+          build
+          -p bsx
+          --release
+          --lib
+          --no-default-features
+          --features ffi
+
+      # ── Upload ────────────────────────────────────────────────────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bsx-${{ matrix.name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error

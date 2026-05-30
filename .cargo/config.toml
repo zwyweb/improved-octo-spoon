@@ -1,0 +1,32 @@
+# ── WASM32 ────────────────────────────────────────────────────────────────────
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "opt-level=3",
+    "-C", "codegen-units=1",
+    "-C", "debuginfo=0",
+    "-C", "panic=abort",
+    "-C", "lto=fat",
+    "-C", "target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext,+mutable-globals,+reference-types,+multivalue",
+    "-C", "link-arg=-zstack-size=32768",
+]
+
+# ── Android ARM64 ─────────────────────────────────────────────────────────────
+# Linker/AR are set here as fallback for local builds.
+# In CI, CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER is set by cargo-ndk
+# and takes precedence — these entries are harmless in that case.
+#
+# For local cross-builds without cargo-ndk:
+#   export ANDROID_NDK_HOME=/path/to/ndk
+#   export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
+[target.aarch64-linux-android]
+rustflags = [
+    "-C", "opt-level=3",
+    "-C", "debuginfo=0",
+]
+
+# ── Android ARMv7 (optional, for 32-bit support) ──────────────────────────────
+[target.armv7-linux-androideabi]
+rustflags = [
+    "-C", "opt-level=3",
+    "-C", "debuginfo=0",
+]
